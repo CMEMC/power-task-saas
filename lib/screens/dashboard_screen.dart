@@ -1,87 +1,149 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../models/task_model.dart';
-import '../repositories/task_repository.dart';
-import '../services/auth_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
-
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  _DashboardScreenState createState() => _DashboardScreenState();
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final TaskRepository _repository = TaskRepository();
-  
-  // Get the current logged-in user
-  final User currentUser = FirebaseAuth.instance.currentUser!;
+  final String orgId = "DEMO_ORG_123"; // Logic for multi-tenancy
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Welcome, ${currentUser.displayName ?? 'User'}!'),
+  // Controllers for the Dialog input fields
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _csiController = TextEditingController();
+  final TextEditingController _budgetController = TextEditingController();
+
+  // Function to show the "Rugged Utility" Task Entry Dialog
+  void _showAddTaskDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Color(0xFF1E1E1E), // Dark theme
+        title: Text("NEW FIELD TASK", 
+          style: TextStyle(color: Colors.yellow[700], fontWeight: FontWeight.bold)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildTextField(_titleController, "Task Name (e.g. Plate Layout)"),
+              _buildTextField(_csiController, "CSI Code (e.g. 06 11 00)"),
+              _buildTextField(_budgetController, "Allocated Budget (\$)", isNumber: true),
+            ],
+          ),
+        ),
         actions: [
-          // Sign Out Button
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => AuthService().signOut(),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text("CANCEL", style: TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow[700]),
+            onPressed: () {
+              _saveTaskToFirestore();
+              Navigator.pop(context);
+            },
+            child: Text("CREATE TASK", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
           ),
         ],
-      ),
-      body: StreamBuilder<List<Task>>(
-        // WE USE THE USER'S ID AS THE "ORG ID"
-        // This means every user has their own private list!
-        stream: _repository.streamTasksForOrg(currentUser.uid),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final tasks = snapshot.data ?? [];
-
-          if (tasks.isEmpty) {
-            return const Center(child: Text('You have no tasks. Add one!'));
-          }
-
-          return ListView.builder(
-            itemCount: tasks.length,
-            itemBuilder: (context, index) {
-              final task = tasks[index];
-              return Card(
-                child: ListTile(
-                  title: Text(task.title),
-                  subtitle: Text(task.status.name),
-                  trailing: Checkbox(
-                    value: task.status == TaskStatus.done,
-                    onChanged: (val) {
-                      final newStatus = val == true ? TaskStatus.done : TaskStatus.todo;
-                      _repository.updateStatus(currentUser.uid, task.id, newStatus);
-                    },
-                  ),
-                ),
-              );
-            },
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _addTask,
-        child: const Icon(Icons.add),
       ),
     );
   }
 
-  void _addTask() {
-    final newTask = Task(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      title: 'New Task ${DateTime.now().second}',
-      description: '',
-      status: TaskStatus.todo,
-      assignedUserId: currentUser.uid,
-      organizationId: currentUser.uid, // Save to THIS user's list
-      createdAt: DateTime.now(),
+  // Industrial Input Field Widget
+  Widget _buildTextField(TextEditingController controller, String label, {bool isNumber = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: TextField(
+        controller: controller,
+        keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+        style: TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(color: Colors.white60),
+          enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+          focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.yellow[700]!)),
+        ),
+      ),
     );
-    _repository.createTask(newTask);
+  }
+
+  // The SaaS Database Logic
+  Future<void> _saveTaskToFirestore() async {
+    if (_titleController.text.isEmpty) return;
+
+    await FirebaseFirestore.instance.collection('tasks_instances').add({
+      "org_id": orgId,
+      "title": _titleController.text,
+      "csi_code": _csiController.text,
+      "budget_allocated": double.tryParse(_budgetController.text) ?? 0.0,
+      "actual_cost_to_date": 0.0, // New tasks start at zero actuals
+      "isDone": false,
+      "timestamp": FieldValue.serverTimestamp(),
+    });
+
+    // Clear controllers after save
+    _titleController.clear();
+    _csiController.clear();
+    _budgetController.clear();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Color(0xFF121212),
+      appBar: AppBar(
+        title: Text('POWER TASK: FIELD LOG', 
+          style: TextStyle(fontWeight: FontWeight.black, letterSpacing: 1.5)),
+        backgroundColor: Colors.yellow[700],
+        foregroundColor: Colors.black,
+      ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('tasks_instances')
+            .where('org_id', isEqualTo: orgId)
+            .orderBy('timestamp', descending: true)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) return Center(child: CircularProgressIndicator());
+
+          return ListView.builder(
+            padding: EdgeInsets.all(12),
+            itemCount: snapshot.data!.docs.length,
+            itemBuilder: (context, index) {
+              var task = snapshot.data!.docs[index];
+              return _buildTaskCard(task);
+            },
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showAddTaskDialog(context),
+        backgroundColor: Colors.yellow[700],
+        icon: Icon(Icons.add, color: Colors.black),
+        label: Text("NEW TASK", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  Widget _buildTaskCard(DocumentSnapshot doc) {
+    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    double budget = (data['budget_allocated'] ?? 0.0).toDouble();
+    double actual = (data['actual_cost_to_date'] ?? 0.0).toDouble();
+    double variance = budget - actual;
+    
+    return Card(
+      color: Color(0xFF1E1E1E),
+      margin: EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: variance < 0 ? Colors.red : Colors.greenAccent, width: 2),
+      ),
+      child: ListTile(
+        title: Text(data['title']?.toUpperCase() ?? 'NEW TASK', 
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+        subtitle: Text("CSI: ${data['csi_code'] ?? 'N/A'} • Variance: \$${variance.toStringAsFixed(2)}",
+          style: TextStyle(color: Colors.white70)),
+      ),
+    );
   }
 }
