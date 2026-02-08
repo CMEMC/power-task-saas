@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "747386089012",
+    "project_id": "power-task-saas",
+    "storage_bucket": "power-task-saas.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:747386089012:android:745c0d1a30b51cc4e3a461",
+        "android_client_info": {
+          "package_name": "com.example.myapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBvFUhUk4VNV-8bjC6Oen80AJNLPeblFCk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

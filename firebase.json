@@ -1,0 +1,37 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "power-task-saas",
+          "appId": "1:747386089012:android:745c0d1a30b51cc4e3a461",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "power-task-saas",
+          "configurations": {
+            "android": "1:747386089012:android:745c0d1a30b51cc4e3a461",
+            "ios": "1:747386089012:ios:4a02f6860ecf07ece3a461",
+            "web": "1:747386089012:web:9ca10ef4cc5a272ce3a461"
+          }
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
